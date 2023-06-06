@@ -1,0 +1,159 @@
+﻿@page "/contactos"
+
+@if (!ShowForm)
+{
+    <h3>Contactos (@Contactos.Count)</h3>
+    <div class="mb-2">
+        <button class="btn btn-success"
+            @onclick="()=>{ShowForm = !ShowForm;}">
+            Agregar
+        </button>
+    </div>
+}
+<div class="container">
+    @if (ShowForm)
+    {
+        <h3>@TituloForm</h3>
+        <EditForm Model="request" OnValidSubmit="Send">
+            <div class="mb-3 input-group"> 
+                <label class="input-group-text">Nombre</label>
+                <InputText class="form-control" @bind-Value="@request.Nombre"></InputText>
+            </div>
+            <div class="mb-3 input-group">
+                <label class="input-group-text">Telefono</label>
+                <InputText class="form-control" @bind-Value="@request.Telefono"></InputText>
+            </div>
+            <div class="mb-3 input-group">
+                <label class="input-group-text">Direccion</label>
+                <InputText class="form-control" @bind-Value="@request.Direccion"></InputText>
+            </div>
+            <div class="mb-3 input-group">
+                <label class="input-group-text">Ciudad</label>
+                <select class="form-control" @bind="request.CiudadId">
+                    <option disabled>Selecciona una ciudad</option>
+                    @foreach (var ciudad in Ciudades)
+                    {
+                        <option value="@ciudad.Id">
+                            @ciudad.Nombre
+                            </option>
+                    }
+                </select>
+            </div>
+            <div class="btn-group">
+                <button type="submit" class="btn btn-outline-success">Guardar</button>
+                <button @onclick="Cancelar" class="btn btn-outline-danger">Cancelar</button>
+            </div>
+        </EditForm>
+        <br/>
+    }
+    else
+    {
+        @foreach (var contacto in Contactos)
+        {
+            <div class="card" style="width:18rem;">
+                <div class="card-body">
+                    <label class="card-title">@contacto.Nombre</label>
+                    <div class="card-text">
+                        <label>@contacto.Telefono</label>
+                        <label>@contacto.NombreCiudadtexto</label>
+                    </div>
+                    <button @onclick="()=>Seleccionar(contacto.Id)"
+                            class="btn btn-warning">
+                        Editar
+                    </button>
+                    <button @onclick="()=>Eliminar(contacto)"
+                            class="btn btn-danger">
+                        Eliminar
+                    </button>
+                </div>
+            </div>
+        }
+    }
+</div>
+@code {
+    public string TituloForm => request.Id == 0 ? 
+    "Agregar contacto" : "Modificar contacto";
+
+    public bool ShowForm { get; set; } = false;
+    public string Filtro { get; set; } = "";
+    public List<ContactoResponse> Contactos { get; set; }
+        = new List<ContactoResponse>();
+
+    public List<CiudadResponse> Ciudades { get; set; } = new List<CiudadResponse>();
+
+    public ContactoRequest request { get; set; } = new ContactoRequest();
+
+    void Cancelar()
+    {
+        request  = new ContactoRequest();
+        ShowForm = false;
+    }
+    async Task CargarCiudades()
+    {
+        var resultado = await ciudadServices.Consultar();
+        if (resultado.Success)
+        {
+            Ciudades = resultado.Data!;
+        }
+    }
+    async Task CargarContactos()
+    {
+        var resultado =
+        await contactoServices.Consultar(Filtro);
+        if (resultado.Success)
+        {
+            Contactos = resultado.Data!;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarContactos();
+        await CargarCiudades();
+    }
+
+    public async Task Send()
+    {
+        if(request.Id == 0)
+        {
+            //Debo registrar el contacto..
+            var r = await contactoServices.Crear(request);
+            if (r.Success)
+            {
+                Cancelar();
+                await CargarContactos();
+                StateHasChanged();
+            }
+        }
+        else
+        {
+            //Debo solicitar modificar el contacto...
+            var r = await contactoServices.Modificar(request);
+            if (r.Success)
+            {
+                Cancelar();
+                await CargarContactos();
+                StateHasChanged();
+            }
+        }
+    }
+
+    public void Seleccionar(int Id)
+    {
+        ShowForm = true;
+        request = Contactos
+        .Where(c => c.Id == Id)
+        .Select(c => c.ToRequest())
+        .FirstOrDefault()??new ContactoRequest();
+    }
+
+    public async Task Eliminar(ContactoResponse contacto)
+    {
+        var resultado = await contactoServices.Eliminar(contacto.ToRequest());
+        if (resultado.Success)
+        {
+            await CargarContactos();
+            StateHasChanged();
+        }
+    }
+}
